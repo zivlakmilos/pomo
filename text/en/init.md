@@ -7,4 +7,5 @@ The {{aka}} command sets all cached variables to their initial values. Any varia
     warn        - {{dwarn}}
     prefix      - {{dprefix}}
     prefixwarn  - {{dprefixwarn}}
+    notify      - {{notify}}
 

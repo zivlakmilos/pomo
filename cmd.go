@@ -4,6 +4,7 @@ import (
 	"math"
 	"time"
 
+	"github.com/gen2brain/beeep"
 	Z "github.com/rwxrob/bonzai/z"
 	"github.com/rwxrob/conf"
 	"github.com/rwxrob/dtime"
@@ -19,6 +20,7 @@ var (
 	Warn       = "1m"
 	Prefix     = "🍅"
 	PrefixWarn = "💢"
+	Notify     = "false"
 )
 
 func init() {
@@ -29,6 +31,7 @@ func init() {
 	Z.Dynamic[`dwarn`] = func() string { return Warn }
 	Z.Dynamic[`dprefix`] = func() string { return Prefix }
 	Z.Dynamic[`dprefixwarn`] = func() string { return PrefixWarn }
+	Z.Dynamic[`dnotify`] = func() string { return Notify }
 }
 
 var Cmd = &Z.Cmd{
@@ -65,7 +68,6 @@ var initCmd = &Z.Cmd{
 	Description: help.D(_init),
 
 	Call: func(x *Z.Cmd, _ ...string) error {
-
 		val, _ := x.Caller.C(`duration`)
 		if val == "null" {
 			val = Duration
@@ -96,6 +98,12 @@ var initCmd = &Z.Cmd{
 		}
 		x.Caller.Set(`prefixwarn`, val)
 
+		val, _ = x.Caller.C(`notify`)
+		if val == "null" {
+			val = Notify
+		}
+		x.Caller.Set(`notify`, val)
+
 		return nil
 	},
 }
@@ -108,7 +116,6 @@ var printCmd = &Z.Cmd{
 	Description: help.D(_print),
 
 	Call: func(x *Z.Cmd, _ ...string) error {
-
 		started, err := x.Caller.Get(`started`)
 		if err != nil {
 			return err
@@ -166,12 +173,35 @@ var printCmd = &Z.Cmd{
 			prefix = prefixwarn
 		}
 
+		notify, err := x.Caller.Get(`notify`)
+		if err != nil {
+			return err
+		}
+
+		notified, err := x.Caller.Get(`notified`)
+		if err != nil {
+			return err
+		}
+
+		notifyb := notify == "true"
+		notifiedb := notified == "true"
+
+		if left < 0 && notifyb && !notifiedb {
+			err := x.Caller.Set("notified", "true")
+			if err != nil {
+				return err
+			}
+
+			beeep.Alert("Pomo", "Pomodoro timeout!", "")
+		}
+
 		autoreset, err := x.Caller.Get(`autoreset`)
 		if err != nil {
 			return err
 		}
 
 		if autoreset == `hour` && left < 0 {
+			x.Caller.Del("notified")
 			if err := startCmd.Call(x, `hour`); err != nil {
 				return err
 			}
@@ -217,6 +247,9 @@ var startCmd = &Z.Cmd{
 		if err != nil {
 			return err
 		}
+
+		x.Caller.Del("notified")
+
 		started := time.Now().Add(dur).Format(time.RFC3339)
 		return x.Caller.Set("started", started)
 	},
@@ -230,6 +263,7 @@ var stopCmd = &Z.Cmd{
 
 	Call: func(x *Z.Cmd, args ...string) error {
 		x.Caller.Del("started")
+		x.Caller.Del("notified")
 		return nil
 	},
 }
